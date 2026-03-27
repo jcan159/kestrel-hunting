@@ -19,9 +19,12 @@ class CategoryScore:
     sentinel: int = 100
     structure: int = 100
     documentation: int = 100
+    _overall: int | None = field(default=None, repr=False, compare=False)
 
     @property
     def overall(self) -> int:
+        if self._overall is not None:
+            return self._overall
         return int(
             self.correctness * 0.40
             + self.performance * 0.25
