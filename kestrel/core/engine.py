@@ -1,4 +1,5 @@
 from __future__ import annotations
+import dataclasses
 from kestrel.core.models import Finding
 from kestrel.core.parser import ParsedQuery
 from kestrel.core.rules import Rule
@@ -25,6 +26,6 @@ class Engine:
                 continue
             for finding in rule.check(parsed, env):
                 if finding.rule_id in self.severity_overrides:
-                    finding.severity = self.severity_overrides[finding.rule_id]
+                    finding = dataclasses.replace(finding, severity=self.severity_overrides[finding.rule_id])
                 findings.append(finding)
         return findings

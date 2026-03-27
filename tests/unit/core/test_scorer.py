@@ -1,3 +1,4 @@
+import pytest
 from kestrel.core.models import Finding
 from kestrel.core.scorer import score
 
@@ -54,8 +55,21 @@ def test_score_overall_weighted():
 
 
 def test_score_weight_overrides():
+    weight_overrides = {"correctness": 1.0, "performance": 0.0,
+                        "sentinel": 0.0, "structure": 0.0,
+                        "documentation": 0.0}
     findings = [make_finding("correctness", "error")]
-    s = score(findings, weight_overrides={"correctness": 1.0, "performance": 0.0,
-                                           "sentinel": 0.0, "structure": 0.0,
-                                           "documentation": 0.0})
-    assert s.overall == 80
+    s = score(findings, weight_overrides=weight_overrides)
+    assert s.weighted_overall(weight_overrides) == 80
+
+
+def test_score_weight_overrides_not_summing_to_one_raises():
+    with pytest.raises(ValueError, match="weights must sum to 1.0"):
+        score([], weight_overrides={"correctness": 0.5, "performance": 0.0,
+                                    "sentinel": 0.0, "structure": 0.0,
+                                    "documentation": 0.0})
+
+
+def test_score_unknown_category_raises():
+    with pytest.raises(ValueError, match="Unknown finding category"):
+        score([make_finding("bogus_category", "error")])

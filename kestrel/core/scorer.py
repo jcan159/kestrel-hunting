@@ -12,20 +12,26 @@ _DEFAULT_WEIGHTS: dict[str, float] = {
 
 
 def score(findings: list[Finding], weight_overrides: dict[str, float] | None = None) -> CategoryScore:
-    weights = {**_DEFAULT_WEIGHTS, **(weight_overrides or {})}
-    totals: dict[str, int] = {cat: 100 for cat in weights}
+    if weight_overrides:
+        weights = {**_DEFAULT_WEIGHTS, **weight_overrides}
+        total = sum(weights.values())
+        if abs(total - 1.0) > 1e-9:
+            raise ValueError(f"weights must sum to 1.0, got {total}")
+    else:
+        weights = _DEFAULT_WEIGHTS
+
+    totals: dict[str, int] = {cat: 100 for cat in _DEFAULT_WEIGHTS}
 
     for finding in findings:
         cat = finding.category
-        if cat in totals:
-            totals[cat] = max(0, totals[cat] - _DEDUCTIONS.get(finding.severity, 0))
+        if cat not in totals:
+            raise ValueError(f"Unknown finding category: {cat!r}")
+        totals[cat] = max(0, totals[cat] - _DEDUCTIONS.get(finding.severity, 0))
 
-    overall = int(sum(totals[cat] * weights[cat] for cat in weights))
     return CategoryScore(
         correctness=totals["correctness"],
         performance=totals["performance"],
         sentinel=totals["sentinel"],
         structure=totals["structure"],
         documentation=totals["documentation"],
-        _overall=overall,
     )

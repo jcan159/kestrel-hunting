@@ -1,8 +1,7 @@
 from kestrel.core.engine import Engine
 from kestrel.core.models import Finding
-from kestrel.core.parser import parse
+from kestrel.core.parser import parse, ParsedQuery
 from kestrel.core.rules import Rule
-from kestrel.core.parser import ParsedQuery
 from kestrel.environments.registry import get_environment
 
 

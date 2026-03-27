@@ -19,12 +19,9 @@ class CategoryScore:
     sentinel: int = 100
     structure: int = 100
     documentation: int = 100
-    _overall: int | None = field(default=None, repr=False, compare=False)
 
     @property
     def overall(self) -> int:
-        if self._overall is not None:
-            return self._overall
         return int(
             self.correctness * 0.40
             + self.performance * 0.25
@@ -32,6 +29,15 @@ class CategoryScore:
             + self.structure * 0.10
             + self.documentation * 0.05
         )
+
+    def weighted_overall(self, weights: dict[str, float]) -> int:
+        return int(round(
+            self.correctness * weights.get("correctness", 0.0)
+            + self.performance * weights.get("performance", 0.0)
+            + self.sentinel * weights.get("sentinel", 0.0)
+            + self.structure * weights.get("structure", 0.0)
+            + self.documentation * weights.get("documentation", 0.0)
+        ))
 
 
 @dataclass
