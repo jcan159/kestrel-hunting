@@ -6,12 +6,12 @@ from kestrel.core.rules import Rule
 from kestrel.environments.registry import Environment
 
 _JOIN_KIND_RE = re.compile(r"\bkind\s*=", re.IGNORECASE)
-# sample in KQL is used as "| sample N" (no parens) OR rand/dcount with parens
-_NONDETERMINISTIC_RE = re.compile(r"\b(rand\s*\(|dcount\s*\(|\bsample\b)", re.IGNORECASE)
+# sample in KQL is used as "| sample N" (no parens) OR rand with parens
+_NONDETERMINISTIC_RE = re.compile(r"\b(rand\s*\(|sample\b)", re.IGNORECASE)
 _MATERIALIZE_RE = re.compile(r"\bmaterialize\s*\(", re.IGNORECASE)
 _SERIES_DECOMPOSE_START_RE = re.compile(r"\bseries_decompose_anomalies\s*\(", re.IGNORECASE)
 _STDEV_DIV_RE = re.compile(r"/\s*stdev", re.IGNORECASE)
-_IFF_STDEV_RE = re.compile(r"\biff\s*\([^,]*stdev[^,]*==\s*0", re.IGNORECASE)
+_IFF_STDEV_RE = re.compile(r"\b(iff|iif|case)\s*\([^,]*stdev[^,]*==\s*0", re.IGNORECASE)
 _ARG_MAX_RE = re.compile(r"\barg_max\s*\(TimeGenerated", re.IGNORECASE)
 # Time filter: requires a where/filter clause with TimeGenerated, not just any mention
 _WHERE_TIME_FILTER_RE = re.compile(r"\bwhere\b[^|]*\b(TimeGenerated|Timestamp)\b", re.IGNORECASE)
@@ -23,8 +23,9 @@ _KNOWN_TOKENS = {
     "Teams", "OneDrive", "SharePoint", "GitHub", "Active", "Directory",
 }
 _DEPRECATED_TI_RE = re.compile(r"\bThreatIntelligenceIndicator\b")
-_UNION_STAR_RE = re.compile(r"\bunion\b[^|]*\*", re.IGNORECASE)
-_JOIN_SUBQUERY_RE = re.compile(r"\b(join|union|lookup)\b[^(]*\(", re.IGNORECASE)
+_INLINE_COMMENT_RE = re.compile(r"//.*$")
+_JOIN_SUBQUERY_RE = re.compile(r"\b(join|union)\b\s*\(", re.IGNORECASE)
+_FILE_EXT_RE = re.compile(r"\.[a-z]{2,4}$", re.IGNORECASE)
 
 
 def _extract_join_subqueries(raw: str) -> list[tuple[int, str]]:
@@ -62,7 +63,13 @@ class HasSemanticMismatch(Rule):
         for stage in parsed.pipeline:
             if stage.operator == "where":
                 m = _COMPOUND_TOKEN_RE.search(stage.args)
-                if m and m.group(1) not in _KNOWN_TOKENS:
+                if m:
+                    term = m.group(1)
+                    if term in _KNOWN_TOKENS:
+                        continue
+                    # Skip file-extension terms — they are valid standalone tokens
+                    if _FILE_EXT_RE.search(term):
+                        continue
                     findings.append(self.finding(
                         "warning", stage.line,
                         f"`has '{m.group(1)}'` — the search term looks like a compound token (camelCase/dotted). "
@@ -140,7 +147,8 @@ class DeprecatedThreatIntelTable(Rule):
 
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
         for i, line in enumerate(parsed.lines, 1):
-            if _DEPRECATED_TI_RE.search(line):
+            clean = _INLINE_COMMENT_RE.sub("", line)
+            if _DEPRECATED_TI_RE.search(clean):
                 return [self.finding(
                     "error", i,
                     "`ThreatIntelligenceIndicator` table is retiring May 31 2026.",

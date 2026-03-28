@@ -142,3 +142,40 @@ def test_corr008_arg_max_with_time_no_fire():
          "| summarize arg_max(TimeGenerated, *) by Key) on Key")
     findings = fires(ArgMaxWithoutTimeFilter(), q)
     assert findings == []
+
+
+def test_corr001_exe_filename_no_false_positive():
+    q = "T | where ProcessName has 'cmd.exe'"
+    findings = fires(HasSemanticMismatch(), q)
+    assert findings == []
+
+
+def test_corr001_ps1_script_no_false_positive():
+    q = "T | where CommandLine has 'script.ps1'"
+    findings = fires(HasSemanticMismatch(), q)
+    assert findings == []
+
+
+def test_corr003_dcount_no_false_positive():
+    q = ("let counts = SecurityEvent | summarize dcount(Computer) by Account;\n"
+         "counts | join (counts | where AccountType == 'user') on Account")
+    findings = fires(NondeterministicLetWithoutMaterialize(), q)
+    assert findings == []
+
+
+def test_corr004_union_no_parens_no_fire():
+    q = "SecurityAlert | union DeviceAlertEvents | where TimeGenerated > ago(1d)"
+    findings = fires(MissingTimeFilterInSubquery(), q)
+    assert findings == []
+
+
+def test_corr005_in_comment_no_fire():
+    q = "ThreatIntelIndicators | where TimeGenerated > ago(30d) // replaced ThreatIntelligenceIndicator"
+    findings = fires(DeprecatedThreatIntelTable(), q)
+    assert findings == []
+
+
+def test_corr007_iif_guard_no_fire():
+    q = "T | extend z = iif(stdev_val == 0, 0.0, (val - avg_val) / stdev_val)"
+    findings = fires(StdevWithoutZeroGuard(), q)
+    assert findings == []
