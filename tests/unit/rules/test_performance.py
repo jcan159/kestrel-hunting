@@ -151,6 +151,13 @@ def test_perf010_dcount_without_toscalar_fires():
     assert any(f.rule_id == "PERF010" for f in findings)
 
 
+def test_perf010_single_use_no_fire():
+    q = ("let total = toscalar(SecurityEvent | summarize dcount(Computer));\n"
+         "SecurityEvent | where Computer != ''")
+    findings = fires(DcountWithoutToscalar(), q)
+    assert findings == []
+
+
 def test_perf011_serialize_early_fires():
     q = "T | serialize | where x == 1 | summarize count() by y"
     findings = fires(SerializeEarly(), q)
