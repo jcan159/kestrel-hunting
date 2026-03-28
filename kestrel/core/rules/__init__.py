@@ -6,6 +6,20 @@ from kestrel.environments.registry import Environment
 
 
 class Rule(ABC):
+    rule_id: str
+    category: str
+    default_severity: str
+
+    def finding(self, severity: str, line: int | None, message: str, suggestion: str) -> Finding:
+        return Finding(
+            rule_id=self.rule_id,
+            category=self.category,
+            severity=severity,
+            line=line,
+            message=message,
+            suggestion=suggestion,
+        )
+
     @property
     @abstractmethod
     def rule_id(self) -> str: ...

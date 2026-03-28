@@ -178,3 +178,41 @@ def test_perf012_case_insensitive_fires():
 def test_perf012_case_sensitive_no_fire():
     findings = fires(CaseInsensitiveOperator(), "T | where Name == 'admin'")
     assert findings == []
+
+
+def test_perf004_extend_with_inner_condition_no_false_positive():
+    # EventID inside iif condition should NOT be added to computed set
+    q = "T | extend Status = iif(EventID == 4624, 'logon', 'other')\n| where EventID == 4688"
+    findings = fires(FilterOnComputedColumn(), q)
+    assert findings == []
+
+
+def test_perf007_column_name_no_false_positive():
+    # Account appears as join key, not a table — should not fire
+    q = ("SecurityEvent | summarize count() by Account\n"
+         "| join (OtherTable | summarize count() by Account) on Account")
+    findings = fires(DuplicateTableScan(), q)
+    assert findings == []
+
+
+def test_perf002_same_stage_has_and_regex_no_fire():
+    findings = fires(RegexWithoutPrefilter(),
+                     "T | where Name has 'evil' and Name matches regex @'^evil.*'")
+    assert findings == []
+
+
+def test_perf003_search_star_in_comment_no_fire():
+    findings = fires(SearchOrUnionStarPerf(),
+                     "SecurityEvent | where EventID == 1 // union * would scan all tables")
+    assert findings == []
+
+
+def test_perf003_union_with_params_fires():
+    findings = fires(SearchOrUnionStarPerf(), "T | union isfuzzy=true *")
+    assert any(f.rule_id == "PERF003" for f in findings)
+
+
+def test_perf011_top_before_filter_no_fire():
+    q = "T | top 10 by Timestamp | where x == 1"
+    findings = fires(SerializeEarly(), q)
+    assert findings == []
