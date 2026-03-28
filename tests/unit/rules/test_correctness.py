@@ -34,6 +34,12 @@ def test_corr001_simple_term_no_fire():
     assert findings == []
 
 
+def test_corr001_powershell_no_false_positive():
+    q = "T | where ProcessName has 'PowerShell'"
+    findings = fires(HasSemanticMismatch(), q)
+    assert findings == []
+
+
 def test_corr002_join_no_kind_fires():
     q = "T1 | join T2 on Key"
     findings = fires(JoinWithoutKind(), q)
@@ -102,6 +108,13 @@ def test_corr006_default_threshold_fires():
 
 def test_corr006_explicit_threshold_no_fire():
     q = "T | make-series x=count() on TimeGenerated step 1h\n| extend a = series_decompose_anomalies(x, 3.0)"
+    findings = fires(SeriesDecomposeDefaultThreshold(), q)
+    assert findings == []
+
+
+def test_corr006_nested_function_explicit_threshold_no_fire():
+    q = ("T | make-series x=count() on TimeGenerated step 1h\n"
+         "| extend a = series_decompose_anomalies(series_fill_linear(x), 3.0)")
     findings = fires(SeriesDecomposeDefaultThreshold(), q)
     assert findings == []
 

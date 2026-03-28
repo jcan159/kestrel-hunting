@@ -9,7 +9,7 @@ _JOIN_KIND_RE = re.compile(r"\bkind\s*=", re.IGNORECASE)
 # sample in KQL is used as "| sample N" (no parens) OR rand/dcount with parens
 _NONDETERMINISTIC_RE = re.compile(r"\b(rand\s*\(|dcount\s*\(|\bsample\b)", re.IGNORECASE)
 _MATERIALIZE_RE = re.compile(r"\bmaterialize\s*\(", re.IGNORECASE)
-_SERIES_DECOMPOSE_RE = re.compile(r"\bseries_decompose_anomalies\s*\(([^)]+)\)", re.IGNORECASE)
+_SERIES_DECOMPOSE_START_RE = re.compile(r"\bseries_decompose_anomalies\s*\(", re.IGNORECASE)
 _STDEV_DIV_RE = re.compile(r"/\s*stdev", re.IGNORECASE)
 _IFF_STDEV_RE = re.compile(r"\biff\s*\([^,]*stdev[^,]*==\s*0", re.IGNORECASE)
 _ARG_MAX_RE = re.compile(r"\barg_max\s*\(TimeGenerated", re.IGNORECASE)
@@ -17,6 +17,11 @@ _ARG_MAX_RE = re.compile(r"\barg_max\s*\(TimeGenerated", re.IGNORECASE)
 _WHERE_TIME_FILTER_RE = re.compile(r"\bwhere\b[^|]*\b(TimeGenerated|Timestamp)\b", re.IGNORECASE)
 _TIME_FILTER_RE = re.compile(r"\b(TimeGenerated|Timestamp)\b", re.IGNORECASE)
 _COMPOUND_TOKEN_RE = re.compile(r"has\s+['\"]([A-Za-z][a-z]+[A-Z][A-Za-z]+|[A-Za-z]+[._-][A-Za-z]+)['\"]")
+# Known product/technology names that are valid standalone index terms and should not be flagged
+_KNOWN_TOKENS = {
+    "PowerShell", "Windows", "Linux", "Azure", "Microsoft", "Office",
+    "Teams", "OneDrive", "SharePoint", "GitHub", "Active", "Directory",
+}
 _DEPRECATED_TI_RE = re.compile(r"\bThreatIntelligenceIndicator\b")
 _UNION_STAR_RE = re.compile(r"\bunion\b[^|]*\*", re.IGNORECASE)
 _JOIN_SUBQUERY_RE = re.compile(r"\b(join|union|lookup)\b[^(]*\(", re.IGNORECASE)
@@ -57,7 +62,7 @@ class HasSemanticMismatch(Rule):
         for stage in parsed.pipeline:
             if stage.operator == "where":
                 m = _COMPOUND_TOKEN_RE.search(stage.args)
-                if m:
+                if m and m.group(1) not in _KNOWN_TOKENS:
                     findings.append(self.finding(
                         "warning", stage.line,
                         f"`has '{m.group(1)}'` — the search term looks like a compound token (camelCase/dotted). "
@@ -145,6 +150,20 @@ class DeprecatedThreatIntelTable(Rule):
         return []
 
 
+def _count_top_level_args(s: str) -> int:
+    """Count comma-separated top-level arguments (not inside nested parens)."""
+    depth = 0
+    commas = 0
+    for ch in s:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            commas += 1
+    return commas + 1
+
+
 class SeriesDecomposeDefaultThreshold(Rule):
     rule_id = "CORR006"
     category = "correctness"
@@ -153,10 +172,19 @@ class SeriesDecomposeDefaultThreshold(Rule):
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
         findings = []
         full = parsed.raw
-        for m in _SERIES_DECOMPOSE_RE.finditer(full):
-            args = m.group(1)
-            if args.count(",") == 0:
-                line = parsed.raw[: m.start()].count("\n") + 1
+        for m in _SERIES_DECOMPOSE_START_RE.finditer(full):
+            start = m.end()
+            depth = 1
+            end = start
+            while end < len(full) and depth > 0:
+                if full[end] == "(":
+                    depth += 1
+                elif full[end] == ")":
+                    depth -= 1
+                end += 1
+            args_str = full[start:end - 1]
+            if _count_top_level_args(args_str) == 1:
+                line = full[: m.start()].count("\n") + 1
                 findings.append(self.finding(
                     "warning", line,
                     "`series_decompose_anomalies()` uses default threshold of 1.5 — "
