@@ -91,6 +91,10 @@ def parse(query: str) -> ParsedQuery:
     # Extract pipeline stages
     pipeline: list[PipelineStage] = []
     for i, line in enumerate(clean_lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Line starting with | — standard pipeline stage
         m = _PIPE_OP_RE.match(line)
         if m:
             pipeline.append(
@@ -100,6 +104,23 @@ def parse(query: str) -> ParsedQuery:
                     line=i,
                 )
             )
+        elif (
+            not re.match(r"let\s+\w+\s*=", stripped, re.IGNORECASE)
+            and "|" in stripped
+        ):
+            # Inline pipes: "Table | op1 args | op2 args"
+            # Split on " | " to get table ref + ops; skip the first segment (table)
+            parts = re.split(r"\s*\|\s*", stripped)
+            for part in parts[1:]:
+                om = re.match(r"^(\w[\w-]*)\s*(.*?)$", part.strip())
+                if om:
+                    pipeline.append(
+                        PipelineStage(
+                            operator=om.group(1).lower(),
+                            args=om.group(2).strip(),
+                            line=i,
+                        )
+                    )
 
     return ParsedQuery(
         raw=query,
