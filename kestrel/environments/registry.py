@@ -33,12 +33,12 @@ ENVIRONMENTS: dict[str, Environment] = {
     "defender-xdr": Environment(
         name="defender-xdr",
         display_name="Microsoft Defender XDR — Custom Detection",
-        disabled_rules=_SENT_NRT_ONLY | _SENT_SCHEDULED_ONLY | _DEFENDER_CONTINUOUS_ONLY,
+        disabled_rules=_SENT_NRT_ONLY | _SENT_SCHEDULED_ONLY | _DEFENDER_CONTINUOUS_ONLY | {"SENT006"},
     ),
     "defender-xdr-continuous": Environment(
         name="defender-xdr-continuous",
         display_name="Microsoft Defender XDR — Continuous (NRT) Detection",
-        disabled_rules=_SENT_NRT_ONLY | _SENT_SCHEDULED_ONLY,
+        disabled_rules=_SENT_NRT_ONLY | _SENT_SCHEDULED_ONLY | {"SENT006"},
     ),
 }
 

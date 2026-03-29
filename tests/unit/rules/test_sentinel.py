@@ -33,6 +33,14 @@ def test_sent001_union_star_fires():
     assert any(f.rule_id == "SENT001" for f in fires(SearchOrUnionStar(), "T | union *"))
 
 
+def test_sent001_union_kind_outer_star_fires():
+    assert any(f.rule_id == "SENT001" for f in fires(SearchOrUnionStar(), "T | union kind=outer *"))
+
+
+def test_sent001_union_kind_inner_star_fires():
+    assert any(f.rule_id == "SENT001" for f in fires(SearchOrUnionStar(), "T | union kind=inner *"))
+
+
 def test_sent001_specific_table_no_fire():
     assert fires(SearchOrUnionStar(), "SecurityEvent | where EventID == 1") == []
 
@@ -81,6 +89,11 @@ def test_sent005_no_project_no_fire():
     assert fires(TimeGeneratedNotInOutput(), q) == []
 
 
+def test_sent005_project_rename_timegenerated_no_fire():
+    q = "SecurityEvent | where EventID == 1 | project Account, OriginalTime | project-rename TimeGenerated = OriginalTime"
+    assert fires(TimeGeneratedNotInOutput(), q) == []
+
+
 def test_sent006_raw_dns_table_fires():
     q = "DnsEvents | where TimeGenerated > ago(1d) | where ResponseCode == 'NXDOMAIN'"
     assert any(f.rule_id == "SENT006" for f in fires(RawTableInsteadOfAsim(), q))
@@ -114,7 +127,8 @@ def test_sent008_no_join_no_fire():
 
 
 def test_sent009_unsupported_operator_fires():
-    q = "DeviceEvents | where ActionType == 'ProcessCreated' | summarize count() by DeviceId"
+    # make-series is not supported in Continuous mode
+    q = "DeviceEvents | where ActionType == 'ProcessCreated' | make-series count() on Timestamp step 1h"
     assert any(f.rule_id == "SENT009" for f in fires(ContinuousUnsupportedOperator(), q, XDR_CONT))
 
 
@@ -130,6 +144,16 @@ def test_sent010_missing_entity_identifier_fires():
 
 def test_sent010_has_device_id_no_fire():
     q = "DeviceProcessEvents | where Timestamp > ago(1h) | project Timestamp, DeviceId, ReportId"
+    assert fires(MissingEntityIdentifier(), q, XDR) == []
+
+
+def test_sent010_project_keep_without_entity_fires():
+    q = "DeviceProcessEvents | where Timestamp > ago(1h) | project-keep Timestamp, ReportId, FileName"
+    assert any(f.rule_id == "SENT010" for f in fires(MissingEntityIdentifier(), q, XDR))
+
+
+def test_sent010_project_keep_with_entity_no_fire():
+    q = "DeviceProcessEvents | where Timestamp > ago(1h) | project-keep Timestamp, DeviceId, ReportId"
     assert fires(MissingEntityIdentifier(), q, XDR) == []
 
 

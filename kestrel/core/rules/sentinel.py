@@ -10,7 +10,7 @@ _BAG_UNPACK_RE = re.compile(r"\bbag_unpack\b", re.IGNORECASE)
 _COLUMN_IF_EXISTS_RE = re.compile(r"\bcolumn_ifexists\b", re.IGNORECASE)
 _TIME_FILTER_RE = re.compile(r"\b(TimeGenerated|Timestamp)\s*(>|<|between|==)", re.IGNORECASE)
 _TIMESTAMP_FILTER_RE = re.compile(r"\bTimestamp\s*(>|<|between|==)", re.IGNORECASE)
-_UNION_STAR_RE = re.compile(r"\bunion\b[^|]*\*", re.IGNORECASE)
+_BARE_STAR_RE = re.compile(r"(?:^|[\s,])\*(?:[\s,]|$)")
 _INLINE_COMMENT_RE = re.compile(r"//.*$")
 
 # Tables with ASIM equivalents
@@ -24,10 +24,27 @@ _ASIM_MAP = {
     "SecurityEvent": "_Im_Authentication",
 }
 
+# Operators already covered by SENT008 with a specific message
+_SENT008_OPS = {"join", "union", "externaldata"}
+
 # Operators allowed in Defender XDR Continuous (NRT) mode
 _CONTINUOUS_ALLOWED_OPS = {
-    "extend", "project", "print", "where", "parse",
-    "project-away", "project-rename", "datatable",
+    # Column/row operations
+    "extend", "project", "project-away", "project-rename", "project-keep",
+    "print", "datatable",
+    # Filtering
+    "where", "filter", "search",
+    # Parsing
+    "parse", "parse-where", "parse-kv",
+    # Aggregation (valid in Continuous)
+    "summarize", "count", "distinct",
+    # Ordering/limiting
+    "sort", "order", "top", "limit", "take", "top-nested",
+    # Multi-value
+    "mv-expand", "mv-apply",
+    # Misc valid
+    "evaluate", "serialize", "sample", "sample-distinct",
+    "getschema", "invoke",
 }
 
 # Entity identifier columns required in Defender XDR output
@@ -50,7 +67,7 @@ class SearchOrUnionStar(Rule):
         # Check pipeline stages (comment-stripped) for union *
         for stage in parsed.pipeline:
             if stage.operator == "union" and (
-                stage.args.strip() == "*" or _UNION_STAR_RE.search(stage.args)
+                stage.args.strip() == "*" or _BARE_STAR_RE.search(stage.args)
             ):
                 findings.append(self.finding(
                     "error", stage.line,
@@ -130,17 +147,19 @@ class TimeGeneratedNotInOutput(Rule):
     default_severity = "error"
 
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
-        project_stages = [s for s in parsed.pipeline if s.operator == "project"]
+        project_stages = [s for s in parsed.pipeline
+                          if s.operator in ("project", "project-rename", "project-keep")]
         if not project_stages:
             return []  # No project = all columns returned, including TimeGenerated
         last_project = project_stages[-1]
-        if "TimeGenerated" not in last_project.args and "Timestamp" not in last_project.args:
-            return [self.finding(
-                "error", last_project.line,
-                "`TimeGenerated` not returned in query output — required for Scheduled rule lookback to work correctly.",
-                "Add `TimeGenerated` to the final `project` statement.",
-            )]
-        return []
+        args = last_project.args
+        if "TimeGenerated" in args or "Timestamp" in args:
+            return []
+        return [self.finding(
+            "error", last_project.line,
+            "`TimeGenerated` not returned in query output — required for Scheduled rule lookback to work correctly.",
+            "Add `TimeGenerated` to the final `project` statement.",
+        )]
 
 
 class RawTableInsteadOfAsim(Rule):
@@ -201,12 +220,14 @@ class ContinuousUnsupportedOperator(Rule):
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
         findings = []
         for stage in parsed.pipeline:
+            if stage.operator in _SENT008_OPS:
+                continue  # SENT008 covers these
             if stage.operator not in _CONTINUOUS_ALLOWED_OPS:
                 findings.append(self.finding(
                     "error", stage.line,
-                    f"`{stage.operator}` is not in the Continuous (NRT) supported operator allowlist.",
-                    f"Supported operators: {', '.join(sorted(_CONTINUOUS_ALLOWED_OPS))}. "
-                    "Use standard frequency for queries requiring this operator.",
+                    f"`{stage.operator}` is not supported in Defender XDR Continuous (NRT) detections.",
+                    "Use standard frequency (hourly/daily) for queries requiring this operator. "
+                    "See: aka.ms/DefenderXDRContinuousDetections",
                 ))
         return findings
 
@@ -217,7 +238,8 @@ class MissingEntityIdentifier(Rule):
     default_severity = "error"
 
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
-        project_stages = [s for s in parsed.pipeline if s.operator == "project"]
+        project_stages = [s for s in parsed.pipeline
+                          if s.operator in ("project", "project-keep")]
         if not project_stages:
             return []  # All columns returned — entity identifiers present
         last_project = project_stages[-1]
