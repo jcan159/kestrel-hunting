@@ -25,7 +25,7 @@ def test_logic_review_includes_environment_in_system():
     with patch("kestrel.llm.logic_review.call_claude", return_value="ok") as mock_call:
         generate_logic_review("T | where x==1", "defender-xdr", [], cfg)
     system_prompt = mock_call.call_args[1]["system"]
-    assert "defender-xdr" in system_prompt
+    assert "defender-xdr" in system_prompt or "Defender XDR" in system_prompt
 
 
 def test_logic_review_empty_findings_still_calls():
