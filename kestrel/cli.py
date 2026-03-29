@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sys
+from pathlib import Path
 import click
 from kestrel import analyze, AnalysisConfig
 from kestrel.output.formats import format_result
@@ -35,7 +36,6 @@ def analyze_cmd(
             query = click.get_text_stream("stdin").read()
             filename = None
         else:
-            from pathlib import Path
             p = Path(file)
             query = p.read_text()
             filename = p.name
