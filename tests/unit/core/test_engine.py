@@ -44,14 +44,14 @@ def test_engine_no_findings_when_rule_silent():
     assert findings == []
 
 
-# TODO: uncomment after Task 8 (kestrel/core/rules/sentinel.py does not exist yet)
-# def test_engine_skips_disabled_rule():
-#     # SENT001 is disabled for sentinel-nrt
-#     from kestrel.core.rules.sentinel import SearchOrUnionStar
-#     engine = Engine([SearchOrUnionStar()])
-#     env = get_environment("sentinel-nrt")
-#     findings = engine.analyze(parse("search *"), env)
-#     assert findings == []
+def test_engine_skips_disabled_rule():
+    from kestrel.core.engine import default_engine
+    from kestrel.core.rules.sentinel import NrtTopLevelTimeFilter
+    engine = default_engine()
+    env = get_environment("sentinel-scheduled")
+    q = "SecurityEvent | where TimeGenerated > ago(5m) | where EventID == 1"
+    findings = engine.analyze(parse(q), env)
+    assert not any(f.rule_id == "SENT007" for f in findings)
 
 
 def test_engine_severity_override():
@@ -66,3 +66,14 @@ def test_engine_multiple_rules():
     env = get_environment("sentinel-scheduled")
     findings = engine.analyze(parse("T | where x == 1"), env)
     assert len(findings) == 1
+
+
+def test_default_engine_analyzes_bad_query():
+    from kestrel.core.engine import default_engine
+    engine = default_engine()
+    env = get_environment("sentinel-scheduled")
+    q = "SecurityEvent | where EventID == 4624 | join T2 on Account"
+    findings = engine.analyze(parse(q), env)
+    rule_ids = {f.rule_id for f in findings}
+    assert "CORR002" in rule_ids   # join without kind
+    assert "PERF005" in rule_ids   # no project before join

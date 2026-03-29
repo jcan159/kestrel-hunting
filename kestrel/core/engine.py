@@ -29,3 +29,52 @@ class Engine:
                     finding = dataclasses.replace(finding, severity=self.severity_overrides[finding.rule_id])
                 findings.append(finding)
         return findings
+
+
+def default_engine(
+    severity_overrides: dict[str, str] | None = None,
+    disabled_rule_ids: set[str] | None = None,
+) -> Engine:
+    """Return an Engine pre-loaded with all 29 built-in rules."""
+    from kestrel.core.rules.performance import (
+        ContainsInsteadOfHas, RegexWithoutPrefilter, SearchOrUnionStarPerf,
+        FilterOnComputedColumn, NoEarlyProject, LetWithoutMaterialize,
+        DuplicateTableScan, JoinWithoutHint, GraphMatchDeepPath,
+        DcountWithoutToscalar, SerializeEarly, CaseInsensitiveOperator,
+    )
+    from kestrel.core.rules.correctness import (
+        HasSemanticMismatch, JoinWithoutKind, NondeterministicLetWithoutMaterialize,
+        MissingTimeFilterInSubquery, DeprecatedThreatIntelTable,
+        SeriesDecomposeDefaultThreshold, StdevWithoutZeroGuard, ArgMaxWithoutTimeFilter,
+    )
+    from kestrel.core.rules.sentinel import (
+        SearchOrUnionStar, QueryTooLong, AdxCrossClusterFunction,
+        BagUnpackWithoutColumnIfExists, TimeGeneratedNotInOutput, RawTableInsteadOfAsim,
+        NrtTopLevelTimeFilter, ContinuousJoinOrUnion, ContinuousUnsupportedOperator,
+        MissingEntityIdentifier, TimestampFilteredInXdr,
+    )
+    from kestrel.core.rules.structure import (
+        TimeFilterNotFirst, WhereNotOrderedBySelectivity, NoProjectBeforeJoin,
+        HardcodedLiterals, PipelineOrderDeviation,
+    )
+    from kestrel.core.rules.documentation import (
+        MissingMitreTag, MissingAuthorHeader, MissingDescription,
+    )
+
+    rules = [
+        ContainsInsteadOfHas(), RegexWithoutPrefilter(), SearchOrUnionStarPerf(),
+        FilterOnComputedColumn(), NoEarlyProject(), LetWithoutMaterialize(),
+        DuplicateTableScan(), JoinWithoutHint(), GraphMatchDeepPath(),
+        DcountWithoutToscalar(), SerializeEarly(), CaseInsensitiveOperator(),
+        HasSemanticMismatch(), JoinWithoutKind(), NondeterministicLetWithoutMaterialize(),
+        MissingTimeFilterInSubquery(), DeprecatedThreatIntelTable(),
+        SeriesDecomposeDefaultThreshold(), StdevWithoutZeroGuard(), ArgMaxWithoutTimeFilter(),
+        SearchOrUnionStar(), QueryTooLong(), AdxCrossClusterFunction(),
+        BagUnpackWithoutColumnIfExists(), TimeGeneratedNotInOutput(), RawTableInsteadOfAsim(),
+        NrtTopLevelTimeFilter(), ContinuousJoinOrUnion(), ContinuousUnsupportedOperator(),
+        MissingEntityIdentifier(), TimestampFilteredInXdr(),
+        TimeFilterNotFirst(), WhereNotOrderedBySelectivity(), NoProjectBeforeJoin(),
+        HardcodedLiterals(), PipelineOrderDeviation(),
+        MissingMitreTag(), MissingAuthorHeader(), MissingDescription(),
+    ]
+    return Engine(rules, severity_overrides=severity_overrides, disabled_rule_ids=disabled_rule_ids)
