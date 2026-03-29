@@ -47,7 +47,10 @@ def analyze(query: str, config: AnalysisConfig) -> AnalysisResult:
         from kestrel.llm.rewriter import generate_rewrite as _gr
         from kestrel.config import KestrelConfig
 
-        # Populate module-level names so they remain patchable after first import
+        # Populate module-level names on first use. The `is None` guard is intentional:
+        # when a test patches kestrel.api.generate_*, the patched mock is already
+        # in place (not None) before analyze() runs, so we must NOT overwrite it here.
+        # Overwriting would replace the active mock and silently break the test.
         if _self.generate_logic_review is None:
             _self.generate_logic_review = _glr
         if _self.generate_kql_tests is None:
