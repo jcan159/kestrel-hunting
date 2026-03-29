@@ -22,7 +22,8 @@ def load_config(path: Path | str | None) -> KestrelConfig:
     """
     if path is None:
         return KestrelConfig()
-    raw = tomllib.loads(Path(path).read_text())
+    with open(Path(path), "rb") as f:
+        raw = tomllib.load(f)
     kestrel = raw.get("kestrel", {})
     llm = raw.get("llm", {})
     rules = raw.get("rules", {})

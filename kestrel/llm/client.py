@@ -34,8 +34,7 @@ _ENV_CONTEXT = {
     ),
 }
 
-_SHARED_CONSTRAINTS = """
-Important constraints:
+_SHARED_CONSTRAINTS = """Important constraints:
 - Do NOT give generic performance advice already covered by the deterministic rule engine findings provided to you. Those findings are shown in the user message. Focus on detection logic gaps, not re-stating what the engine already found.
 - Do NOT suggest removing project operators that may be required for entity mapping.
 - Do NOT suggest adding or removing time filters unless the logic is provably incorrect for the specific environment above.
