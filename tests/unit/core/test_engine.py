@@ -46,12 +46,11 @@ def test_engine_no_findings_when_rule_silent():
 
 def test_engine_skips_disabled_rule():
     from kestrel.core.engine import default_engine
-    from kestrel.core.rules.sentinel import NrtTopLevelTimeFilter
-    engine = default_engine()
+    engine = default_engine(disabled_rule_ids={"CORR002"})
     env = get_environment("sentinel-scheduled")
-    q = "SecurityEvent | where TimeGenerated > ago(5m) | where EventID == 1"
+    q = "T1 | join T2 on Key"  # CORR002 (join without kind) would fire without the disable
     findings = engine.analyze(parse(q), env)
-    assert not any(f.rule_id == "SENT007" for f in findings)
+    assert not any(f.rule_id == "CORR002" for f in findings)
 
 
 def test_engine_severity_override():

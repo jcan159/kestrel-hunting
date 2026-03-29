@@ -35,7 +35,7 @@ def default_engine(
     severity_overrides: dict[str, str] | None = None,
     disabled_rule_ids: set[str] | None = None,
 ) -> Engine:
-    """Return an Engine pre-loaded with all 29 built-in rules."""
+    """Return an Engine pre-loaded with all 39 built-in rules."""
     from kestrel.core.rules.performance import (
         ContainsInsteadOfHas, RegexWithoutPrefilter, SearchOrUnionStarPerf,
         FilterOnComputedColumn, NoEarlyProject, LetWithoutMaterialize,
