@@ -57,13 +57,30 @@ def test_str004_hardcoded_number_fires():
 
 
 def test_str004_let_variable_no_fire():
-    q = "let threshold = 10;\nSecurityEvent\n| where TimeGenerated > ago(1d)\n| where FailCount > threshold"
+    q = "let threshold = 10;\nlet lookback = 1d;\nSecurityEvent\n| where TimeGenerated > ago(lookback)\n| where FailCount > threshold"
     assert fires(HardcodedLiterals(), q) == []
 
 
 def test_str004_ago_hardcoded_fires():
     q = "SecurityEvent | where TimeGenerated > ago(1d) | summarize count() by Account"
     assert any(f.rule_id == "STR004" for f in fires(HardcodedLiterals(), q))
+
+
+def test_str004_unrelated_let_ago_still_fires():
+    q = "let threshold = 5;\nSecurityEvent\n| where TimeGenerated > ago(1d)\n| where FailCount > threshold"
+    assert any(f.rule_id == "STR004" for f in fires(HardcodedLiterals(), q))
+
+
+def test_str004_event_id_equality_no_false_positive():
+    q = "SecurityEvent | where EventID == 4624 | summarize count() by Account"
+    findings = fires(HardcodedLiterals(), q)
+    # EventID == 4624 is a fixed constant, not a tuneable threshold
+    assert not any(f.rule_id == "STR004" for f in findings)
+
+
+def test_str003_project_keep_before_join_no_fire():
+    q = "T1\n| where x == 1\n| project-keep Key, Val\n| join kind=inner T2 on Key"
+    assert fires(NoProjectBeforeJoin(), q) == []
 
 
 def test_str005_summarize_before_join_fires():
@@ -73,4 +90,9 @@ def test_str005_summarize_before_join_fires():
 
 def test_str005_canonical_order_no_fire():
     q = "T1 | where x == 1 | project Key | join kind=inner T2 on Key | summarize count() by Key"
+    assert fires(PipelineOrderDeviation(), q) == []
+
+
+def test_str005_summarize_before_lookup_no_fire():
+    q = "T1 | where x == 1 | summarize count() by IpAddress | lookup kind=leftouter WatchList on IpAddress"
     assert fires(PipelineOrderDeviation(), q) == []

@@ -16,7 +16,7 @@ class MissingMitreTag(Rule):
     default_severity = "info"
 
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
-        if not _MITRE_RE.search(parsed.raw):
+        if not any(_MITRE_RE.search(c) for c in parsed.comments):
             return [self.finding(
                 "info", None,
                 "No MITRE ATT&CK tactic or technique reference found.",

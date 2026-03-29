@@ -8,8 +8,8 @@ from kestrel.environments.registry import Environment
 _TIME_COL_RE = re.compile(r"\b(TimeGenerated|Timestamp)\b", re.IGNORECASE)
 _EXPENSIVE_OPS = re.compile(r"\b(matches\s+regex|contains|!contains)\b", re.IGNORECASE)
 _AGO_RE = re.compile(r"\bago\s*\(", re.IGNORECASE)
-_AGO_LITERAL_RE = re.compile(r"\bago\s*\(\s*(\d+[smhdw])\s*\)", re.IGNORECASE)
-_HARDCODED_NUM_RE = re.compile(r"(?:>|<|==|!=)\s*\d+")
+_AGO_LITERAL_RE = re.compile(r"\bago\s*\((\w+)\)", re.IGNORECASE)
+_HARDCODED_THRESHOLD_RE = re.compile(r"(?:>|<)\s*\d+")
 
 
 class TimeFilterNotFirst(Rule):
@@ -58,11 +58,16 @@ class NoProjectBeforeJoin(Rule):
     category = "structure"
     default_severity = "info"
 
+    # project-keep and project-rename also narrow columns and satisfy the same intent as project.
+    # Scope: join/lookup only. Flagging "no project before summarize" is overly aggressive —
+    # many aggregation queries intentionally don't project first.
+    _PROJECT_OPS = {"project", "project-away", "project-keep", "project-rename"}
+
     def check(self, parsed: ParsedQuery, env: Environment) -> list[Finding]:
         for i, stage in enumerate(parsed.pipeline):
             if stage.operator in ("join", "lookup"):
                 before = [s.operator for s in parsed.pipeline[:i]]
-                if "project" not in before and "project-away" not in before:
+                if not any(op in self._PROJECT_OPS for op in before):
                     return [self.finding(
                         "info", stage.line,
                         f"No `project` before `{stage.operator}` — all source columns carried through.",
@@ -81,16 +86,22 @@ class HardcodedLiterals(Rule):
         findings = []
         for stage in parsed.pipeline:
             if stage.operator == "where":
-                # Flag hardcoded ago() calls using a duration literal (e.g. ago(1d), ago(7h))
-                # Only flag when there are no let bindings (i.e., the query is entirely unparameterized)
-                if _AGO_LITERAL_RE.search(stage.args) and not let_names:
-                    findings.append(self.finding(
-                        "info", stage.line,
-                        "Hardcoded time window in `ago(...)` — extract to a `let` variable for tunability.",
-                        "Add `let lookback = 1d;` at the top and use `ago(lookback)`.",
-                    ))
-                # Flag hardcoded numeric thresholds not involving TimeGenerated/Timestamp
-                if _HARDCODED_NUM_RE.search(stage.args) and not _TIME_COL_RE.search(stage.args):
+                # Flag hardcoded ago() calls where the argument is not a let variable name.
+                # Duration literals like 1d, 7h, 30m are never in let_names; word identifiers
+                # that match a let binding are allowed (e.g. ago(lookback) with let lookback = 1d).
+                if _AGO_RE.search(stage.args):
+                    m = _AGO_LITERAL_RE.search(stage.args)
+                    if m and m.group(1) not in let_names:
+                        findings.append(self.finding(
+                            "info", stage.line,
+                            "Hardcoded time window in `ago(...)` — extract to a `let` variable for tunability.",
+                            "Add `let lookback = 1d;` at the top and use `ago(lookback)`.",
+                        ))
+                # Flag hardcoded numeric thresholds (> or < comparisons) not involving
+                # TimeGenerated/Timestamp. Only threshold semantics (>, <) are flagged;
+                # equality/inequality (==, !=) are identity checks (e.g. EventID == 4624)
+                # and are fixed constants, not tuneable thresholds.
+                if _HARDCODED_THRESHOLD_RE.search(stage.args) and not _TIME_COL_RE.search(stage.args):
                     findings.append(self.finding(
                         "info", stage.line,
                         "Hardcoded numeric threshold — extract to a `let` variable for easier tuning.",
@@ -109,10 +120,11 @@ class PipelineOrderDeviation(Rule):
         for i, op in enumerate(operators):
             if op == "summarize":
                 remaining = operators[i + 1:]
-                if "join" in remaining or "lookup" in remaining:
+                # lookup after summarize is an intentional watchlist enrichment pattern — not flagged.
+                if "join" in remaining:
                     return [self.finding(
                         "info", parsed.pipeline[i].line,
-                        "`summarize` appears before `join`/`lookup` — deviates from canonical pipeline order.",
-                        "Canonical order: filter → project → join/lookup → summarize → final shaping.",
+                        "`summarize` appears before `join` — deviates from canonical pipeline order.",
+                        "Canonical order: filter → project → join → summarize → final shaping.",
                     )]
         return []

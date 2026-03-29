@@ -34,6 +34,12 @@ def test_doc001_technique_id_no_fire():
     assert fires(MissingMitreTag(), q) == []
 
 
+def test_doc001_mitre_id_in_kql_not_in_comment_still_fires():
+    # A table/variable named with T-number pattern should not suppress the finding
+    q = "T1234 | where EventID == 1"
+    assert any(f.rule_id == "DOC001" for f in fires(MissingMitreTag(), q))
+
+
 def test_doc002_missing_author_fires():
     q = "// Description: detects things\n// MITRE: T1110\nSecurityEvent | where EventID == 1"
     assert any(f.rule_id == "DOC002" for f in fires(MissingAuthorHeader(), q))
