@@ -49,12 +49,7 @@ def build_system_prompt(environment: str) -> str:
         environment,
         f"You are analyzing a KQL detection rule for the {environment} environment."
     )
-    # Include environment name in output for reference
-    if environment in _ENV_CONTEXT:
-        prompt = f"Environment: {environment}\n\n{env_context}"
-    else:
-        prompt = env_context
-    return f"{prompt}\n\n{_SHARED_CONSTRAINTS}"
+    return f"Environment: {environment}\n\n{env_context}\n\n{_SHARED_CONSTRAINTS}"
 
 
 def call_claude(system: str, user: str, config: KestrelConfig) -> str:

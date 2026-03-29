@@ -27,7 +27,7 @@ def test_build_system_prompt_nrt_environment():
     assert "ingestion" in prompt.lower() or "NRT" in prompt
 
 
-def test_call_claude_returns_content(monkeypatch):
+def test_call_claude_returns_content():
     cfg = KestrelConfig(llm_model="claude-opus-4-6")
     mock_client = MagicMock()
     mock_message = MagicMock()
