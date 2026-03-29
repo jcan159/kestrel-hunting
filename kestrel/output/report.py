@@ -1,5 +1,5 @@
 from __future__ import annotations
-from kestrel.core.models import AnalysisResult, Finding
+from kestrel.core.models import AnalysisResult
 
 _SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2}
 _BAR_WIDTH = 14
