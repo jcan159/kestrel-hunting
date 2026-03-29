@@ -1,4 +1,3 @@
-import tomllib
 import pytest
 from pathlib import Path
 from kestrel.config import KestrelConfig, load_config

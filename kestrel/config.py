@@ -16,7 +16,10 @@ class KestrelConfig:
 
 
 def load_config(path: Path | str | None) -> KestrelConfig:
-    """Load config from a TOML file, filling in defaults for missing keys."""
+    """Load config from a TOML file, filling in defaults for missing keys.
+
+    Raises FileNotFoundError if path is not None but the file does not exist.
+    """
     if path is None:
         return KestrelConfig()
     raw = tomllib.loads(Path(path).read_text())
